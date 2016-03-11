@@ -1,0 +1,56 @@
+#!/usr/bin/perl
+
+if(@ARGV){
+    use POSIX ":sys_wait_h";
+    $cpt=0; 
+    $pause=0;
+    $fini=-1;
+    # pour faciliter on donne la possibilité de terminer la saisie
+    print "Pour terminer la saisie, taper uniquement entrée\n";
+
+    $saisie=<STDIN>;
+    chomp($saisie);
+    while(($saisie ne "") || $attentefils > 0 || $fini!=-1){	
+	if($cpt < $ARGV[O]){
+	    if($pause>0 ){
+
+		$pause--;
+		$pid=fork;
+
+		if($pid==0){
+		    exec "perl rien" || die "exec";
+		}
+		print "Je suis le père de $pid, que je viens de créer\n";
+		$cpt++;
+	    }
+	    elsif($saisie ne ""){
+		$pid=fork;
+
+		if($pid==0){
+		    exec "perl rien" || die "exec";
+		}
+
+		print "Je suis le père de $pid que je viens de créer\n";
+		$cpt++;
+	    }	    
+	}
+	elsif ($saisie ne ""){
+	    
+	    print "compteur max atteint, je dois attendre...\n"; 
+	    $pause++;	    
+	}	
+	while(($fini=waitpid(-1, &WNOHANG))>0){
+	    
+	    print "Je suis le père de $$, mon fils $fini est mort...\n";
+	    print "Il y a $pause fils en attente \n";
+	    $cpt--;
+	}	
+	if($saisie ne ""){
+	    $saisie=<STDIN>;
+	    chomp($saisie);
+	}
+    }    
+}
+else{
+    print "Erreur: pas d'argument\n";
+}

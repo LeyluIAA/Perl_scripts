@@ -1,0 +1,16 @@
+AIDE - CSV2HTML(1)
+
+SYNOPSIS
+
+	csv2html - transforme un fichier csv en tableau html
+
+	*************************************************
+
+OPTION
+
+	-d : spécifie un délimiteur
+	-s : spécifie un numéro de colonne à trier
+	-S : spécifie un nom de colonne à trier
+	-h : affiche l'aide du programme
+
+COPYRIGHT Florent Demeulenaere

@@ -1,0 +1,3 @@
+le *corps* du "fichier" final
+test sur *une* deuxieme "ligne" de corps
+mais oui c'est clair

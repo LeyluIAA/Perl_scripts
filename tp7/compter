@@ -1,0 +1,10 @@
+#!/usr/bin/perl
+
+foreach $i (<STDIN>){
+    chomp();
+    $tableau{$i} += 1;    
+}
+
+@monTableau = %tableau;
+
+print "@monTableau";

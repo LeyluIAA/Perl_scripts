@@ -1,0 +1,41 @@
+#!/bin/bash
+#set -x
+PATH=$(cd $(dirname $0) ; pwd):$PATH
+
+tube=/tmp/requete
+mkfifo $tube 2>/dev/null
+
+#paramètrage du serveur (les options)
+
+port=8080
+directory=fichier/
+modele=modele2.html
+
+while test $# -ne 0
+do
+    if test $1 = "-p"
+    then
+	shift
+	port=$1
+    elif test $1 = "-d"
+    then
+	shift
+	directory=$1
+    elif test $1 = "-t"
+    then
+	shift
+	modele=$1
+    elif test $1 = "-h"
+    then
+	shift
+	cat http-server-help.txt
+	exit
+    fi
+    shift
+done
+
+while true
+do
+    cat $tube | http-request $directory $modele | nc.openbsd -l 127.0.0.1 $port >$tube
+done
+

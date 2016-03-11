@@ -1,0 +1,180 @@
+#!/bin/bash
+#set -x
+PATH=$(cd $(dirname $0) ; pwd):$PATH
+if test $1 = "-h"
+then
+    cat http-request-help.txt
+else
+    #On lit les 3 paramètres de la requête
+    read fonction cible version
+    prog=$(echo $0 | rev | cut -d '/' -f 1 | rev)
+    #si la fonction n'est pas "get"
+    if test $fonction != "GET" 
+    then
+	echo "HTTP/1.1 405 NOT ALLOWED"
+	echo "Content-Type: text/html"
+	echo ""
+	echo "ERREUR 405 : NOT ALLOWED" | remplace-par-wiki $2
+	echo "$prog: erreur: $cible: 405: NOT ALLOWED" 1>&2
+
+    #Si la version n'est pas "http/1.1"
+    elif $(echo $version | grep -vq "1.1")
+    then
+	echo "HTTP/1.1 505 VERSION NOT SUPPORTED"
+	echo "Content-Type: text/html"
+	echo ""
+	echo "ERREUR 505 : VERSION NOT SUPPORTED" | remplace-par-wiki $2
+	echo "$prog: erreur: $cible: 505: VERSION NOT SUPPORTED" 1>&2
+
+    #si on a "/contenu/" au début de la source
+    elif $(echo $cible | grep -iq "contenu")
+    then
+	chemin=$(echo $cible | sed -e 's!/contenu!!')
+
+        # si le fichier existe
+	if test -e $1$chemin && test ! -d $1$chemin
+	then
+	    echo "HTTP/1.1 200 OK"
+	    echo "Content-Type: text/HTML"
+	    echo ""
+	    echo $(cat $1$chemin | remplace-par-wiki $2)
+	    echo "$prog: info: $cible: 200: OK" 1>&2
+ 
+        #sinon erreur 406
+	else 
+	    echo "HTTP/1.1 406 NON ACCEPTABLE"
+	    echo "Content-Type: text/HTML"
+	    echo ""
+	    echo "ERREUR 406 : CIBLE NON ACCEPTABLE" | remplace-par-wiki $2 
+	    echo "$prog: erreur: $cible: 406: CIBLE NON ACCEPTABLE" 1>&2
+	fi
+
+    #cas du /triepar/
+    elif $(echo $cible | grep -iq "html") && $(echo $cible | grep -iq "triepar") 
+    then	
+	#recupere le chemin sans le triepar/.*
+	cheminATrier=$(echo $cible | sed 's!/triepar/.*!!')
+
+	# si csv
+	typeChemin=$(mimetype -b $cheminATrier | cut -d '/' -f 2)
+	fichier=$(echo $cheminATrier | cut -d '/' -f 3-)
+	if $(echo $typeChemin | grep -q "csv")
+	then
+            #valeur de tri
+	    tri=$(echo $cible | rev | cut -d '/' -f 1 | rev)
+
+	    #soit c'est un nombre
+	    if $(echo $tri | grep -q [0-9])
+	    then
+		echo "HTTP/1.1 200 OK"
+		echo "Content-Type: text/HTML"
+		echo ""				
+		corps=$(csv2html -s $tri < $1$fichier)
+		echo $corps > fileTri
+		echo $(cat fileTri | remplace-par-wiki $2)
+		rm fileTri
+		echo "$prog: info: $cible: 200: OK" 1>&2
+
+	    #soit c'est un nom de colonne
+	    else
+		echo "HTTP/1.1 200 OK"
+		echo "Content-Type: text/HTML"
+		echo ""	 
+		corps=$(csv2html -S $tri < $1$fichier)
+		echo $corps > fileTri
+		echo $(cat fileTri | remplace-par-wiki $2)
+		rm fileTri
+		echo "$prog: info: $cible: 200: OK" 1>&2
+	    fi
+
+	#si ce n'est pas un csv mais fichier existant (406)
+	elif test -e $cheminATrier
+	then
+	    echo "HTTP/1.1 406 NON ACCEPTABLE"
+	    echo "Content-Type: text/HTML"
+	    echo ""
+	    echo "ERREUR 406 : CIBLE NON ACCEPTABLE" | remplace-par-wiki $2
+	    echo "$prog: erreur: $cible: 406: NOT ACCEPTABLE" 1>&2
+
+	#si inexistant (404)
+	else
+	    echo "HTTP/1.1 404 NOT FOUND"
+	    echo "Content-Type: text/HTML"
+	    echo ""
+	    echo "ERREUR 404 : CIBLE NON TROUVE" | remplace-par-wiki $2
+	    echo "$prog: erreur: $cible: 404: NOT FOUND" 1>&2
+	fi
+
+    #Si on a "/html/" au debut de la source
+    elif $(echo $cible | grep -iq "html")
+    then
+	chemin=$(echo $cible | sed -e 's!/html!!')
+	type=$(mimetype -b $1$chemin | cut -d '/' -f 2)
+
+        #cas où le fichier est un .csv
+	if $(echo $type | grep -q "csv")
+	then
+	    echo "HTTP/1.1 200 OK"
+	    echo "Content-Type: text/HTML"
+	    echo ""
+	    echo $(csv2html <$1$chemin | remplace-par-wiki $2)
+	    echo "$prog: info: $cible: 200: OK" 1>&2
+
+        #cas où le fichier est un .txt
+	elif $(echo $type | grep -q "plain")
+	then
+	    echo "HTTP/1.1 200 OK"
+	    echo "Content-Type: text/HTML"
+	    echo ""
+	    echo $(cat $1$chemin | remplace-par-wiki $2)
+	    echo "$prog: info: $cible: 200: OK" 1>&2
+	    
+        #cas où c'est un répertoire
+	elif $(echo $type | grep -q "directory")
+	then
+	    chemin=$(echo $chemin | sed -e 's!/!!')
+	    Liste="<ul>"
+	    for i in $(ls $1$chemin)
+	    do
+		typetemp=$(mimetype -b $1$chemin$i | cut -d '/' -f 2)
+		if $(echo $typetemp | grep -q "csv")  ||  $(echo $typetemp | grep -q "plain")
+		then
+		    Liste=$Liste"<li><a href=\"/html/$chemin/$i\">$i</a></li>"
+		else
+		    Liste=$Liste"<li><a href=\"/contenu/$chemin/$i\">$i</a></li>"
+		fi
+	    done
+	    echo "HTTP/1.1 200 OK"
+	    echo "Content-Type: text/HTML"
+	    echo "" 
+	    Liste=$Liste"</ul>"
+	    echo "$Liste" > arbre
+	    echo $(cat arbre | remplace-par $2)
+	    rm arbre
+	    echo "$prog: info: $cible: 200: OK" 1>&2
+	    
+        #si aucun des cas ne correspond, si c'est un dossier : erreur 406 , sinon 404
+	elif test -e $chemin
+	then
+	    echo "HTTP/1.1 406 NOT ACCEPTABLE"
+	    echo "Content-Type: text/HTML"
+	    echo "" 
+	    echo "ERREUR 406 : CIBLE NON ACCEPTABLE" | remplace-par-wiki $2
+	    echo "$prog: erreur: $cible: 406: NOT ACCEPTABLE" 1>&2
+	else
+	    echo "HTTP/1.1 404 NOT FOUND"
+	    echo "Content-Type: text/HTML"
+	    echo "" 
+	    echo "ERREUR 404 : CIBLE NON TROUVE" | remplace-par-wiki $2
+	    echo "$prog: erreur: $cible: 404: NOT FOUND" 1>&2
+	fi 
+
+    #dernier cas, la cible ne correspond à rien de connu par le serveur : erreur 406
+    else
+	echo "HTTP/1.1 406 NON ACCEPTABLE"
+	echo "Content-Type: text/HTML"
+	echo ""
+	echo "ERREUR 406 : CIBLE NON ACCEPTABLE" | remplace-par-wiki $2
+	echo "$prog: erreur: $cible: 404: NOT FOUND" 1>&2
+    fi
+fi

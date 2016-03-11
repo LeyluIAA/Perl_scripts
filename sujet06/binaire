@@ -1,0 +1,15 @@
+#!/usr/bin/perl
+
+## boucle infinie --- a terminé
+
+if (@ARGV == 1){
+    $nb = $ARGV[0];
+    $quotient=1;
+    $result = 0;
+    while ($quotient != 0){
+	$quotient = $nb / 2;
+	$reste = $nb % 2;
+	$result = "$reste"."$result";
+    }
+    print "".$result;
+}

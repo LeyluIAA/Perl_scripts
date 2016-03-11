@@ -1,0 +1,18 @@
+#!/usr/bin/perl
+
+if(@ARGV){
+
+    for ($i=0;$i<$ARGV[0];$i++){
+	$pid=fork;
+	if($pid == 0){
+	    exec "perl rien" || die "exec";
+	}
+	print "je suis le pere de $pid que je viens de créer\n"; 
+    }
+    while (($n = wait()) != -1){
+    print "Recuperation du fils $n , désolé, il est mort!\n";
+    }
+    
+}else{
+    print "manque argument\n";
+}

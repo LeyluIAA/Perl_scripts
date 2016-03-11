@@ -1,0 +1,21 @@
+#!/usr/bin/perl
+use Socket;
+
+socket (SOCKET,PF_INET,SOCK_STREAM,getprotobyname('tcp'));
+
+$adresse = inet_aton ($ARGV[0]) || die ("inet_aton");
+$adresse_complete = sockaddr_in("8080",$adresse) || die ("sockaddr_in");
+connect (SOCKET, $adresse_complete) || die ("connect");
+
+print "OK\n";
+SOCKET->autoflush(1);
+print {SOCKET} "GET /$ARGV[1] HTTP/1.1\n";
+print {SOCKET} "Host: $ARGV[0]\n";
+print {SOCKET} "\n";
+
+while(<SOCKET>){
+    print "$_\n";
+}
+
+close (SOCKET);
+print "connexion fermée\n";

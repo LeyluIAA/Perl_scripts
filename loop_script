@@ -1,0 +1,16 @@
+#!/usr/bin/perl
+
+use strict;
+use warnings;
+
+die "wrong number of parameters eg:'./loop_script 5 script'\n" if $#ARGV != 1;
+
+my $sec = $ARGV[0];
+my $scenario = $ARGV[1];
+my $loop = 0;
+
+while ($loop < $sec) {
+	system $scenario;
+	sleep(1);
+	$loop += 1;
+}

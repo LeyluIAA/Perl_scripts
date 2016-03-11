@@ -1,0 +1,13 @@
+<!DOCTYPE HTML>
+<html>
+  <head>
+    <title>page test du serveur bash</title>
+  </head>
+  <body>
+    <p>
+<!--DEBUT_REMPLACEMENT-->
+
+<!--FIN_REMPLACEMENT-->
+    </p>
+  </body>
+</html>

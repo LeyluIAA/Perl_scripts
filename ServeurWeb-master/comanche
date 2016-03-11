@@ -1,0 +1,432 @@
+#!/usr/bin/perl
+
+use POSIX ":sys_wait_h";
+use File::MimeInfo;
+
+if(@ARGV){
+    if($ARGV[0] eq "start"){
+       	lancerServeur() || exit 1;
+	ajouterLog("start", "local", $conf{"port"}, "", "");
+	exit 0;
+    }
+    elsif($ARGV[0] eq "stop"){
+	arreterServeur() || exit 1;
+	lireConf();
+	ajouterLog("stop", "local", $conf{"port"}, "", "");
+	exit 0;
+    }
+    elsif($ARGV[0] eq "status"){
+	status();
+    }
+    else{
+	die "Erreur: options disponibles: start, stop, status\n";
+    }
+}
+
+sub enregistrerPID{
+    #changer et mettre les ouvriers dans une table de hachage
+    open(PID,">>/tmp/.comanche_pid");
+    print PID "@_\n";
+    close(PID);
+}
+
+sub lancerServeur{
+    
+    #lecture fichier de config
+    lireConf();#hachage de conf $conf{clé}
+    
+    use Socket;
+    ### création de la socket ###
+    socket(SERVEUR,PF_INET,SOCK_STREAM,getprotobyname('tcp'));
+    setsockopt(SERVEUR,SOL_SOCKET, SO_REUSEADDR,1);
+    $mon_adresse = sockaddr_in ($conf{"port"},INADDR_ANY);
+    bind(SERVEUR, $mon_adresse) || die ("bind");
+    listen (SERVEUR, SOMAXCONN) || die ("listen");	
+    print "Le serveur écoute sur le port $conf{\"port\"} et accepte $conf{\"clients\"} clients max\n";
+    
+    #création du répartiteur (qui acceptera les connexions)
+    $repartiteur=fork;
+    
+    if($repartiteur==0){
+	
+	open(PID,">/tmp/.comanche_pid");
+	print PID "$$\n";
+	close(PID);
+	# Gestion des connexions des clients 
+	#et création des ouvriers
+	$compteurClient=0;
+	$nbRequetesRecues=0;
+	$nbRequetesTraitees=0;
+	%ouvriers;
+	while(accept(CLIENT,SERVEUR) || die ("accept")){
+	    $nbRequetesRecues++;
+	    if($compteurClient < $conf{"clients"}){
+		$compteurClient++;
+		$requeteClient=<CLIENT>;
+		#$requeteLog=chomp $requeteClient;
+		
+		while(<CLIENT>){
+		    
+		    $requeteClient.=$_;
+		    if($_ =~ "^\r\n"){
+			last;
+		    }
+		}
+		print "$requeteClient\n";
+		##verifier la requete ##
+		#if($requeteClient =~ /\s*(.*)\s+(\/(.*))\sHTTP(\/.\..)\r\n/  ){
+		if($requeteClient =~/(?-i)\s*(.*)(?i)\s+(\/(.*))\sHTTP(\/1\..*)/){
+		    print "1:$1\n2:$2\n3:$3\n4:$4\n";
+		    $methode=$1;
+		    $requeteClient=$2;
+		    $requeteLog="$1 $2 HTTP$4"; 
+		    $ressource=$3;
+		    $version="HTTP$4";
+		    chop($requeteLog);
+		    if($methode!='GET'){
+			repondre405();
+			next;
+		    }
+		    #chop($version);
+		    if($version!~/HTTP\/1\.1/){
+			print "VERSION NON SUPPORTEE\n";
+			repondre505();
+			next;
+		    }
+		    #la requete est conforme on recupère ce que le client demande
+		    
+		    print "requeteCLient : $requeteClient\n requeteLog: $requeteLog\n ressource : $ressource \n";
+		}
+		else{
+		    #si elle n'est pas bonne on renvoie une erreur 400
+		    repondre400();
+		    next;
+		}
+		
+		#on recupère l'ip
+		$peer= getpeername CLIENT;
+        ($pcli, $iaddr)= sockaddr_in($peer);
+        $ip = inet_ntoa($iaddr);
+		##Création ouvrier##
+
+		$pid=fork;
+		if($pid == 0){
+		    enregistrerPID "$$";
+		    
+		    #print "RESSOURCE:$requeteClient\n";
+		    ##########traitement de la requete#####################
+
+		    ### aller chercher le fichier ###
+		    foreach $key (keys(%route)){
+			
+			if($requeteClient=~/$key/){
+			    print "la route est bonne\n";
+			    $chemin=`echo $requeteClient | sed -r 's!$key!$route{$key}!'`;
+			   
+			    last;    
+			}
+		    }    
+		    print "le chemin est : $chemin\n";
+		    
+		    
+		    
+		    chomp($chemin); 
+		    $requeteClient=~s!/$!!;
+		    open(FICHIER , $chemin);
+		    #si le fichier n'existe pas 404
+		    repondre404() if ! -e FICHIER;
+		    #si on ne peut pas lire le fichier 403
+		    repondre403() if ! -r FICHIER;
+		    $contenu="";
+
+		    #### tester le type de fichier######
+		    if(-d FICHIER){			
+			close(FICHIER);
+			
+
+			if($conf{"index"} && open (REP, "$chemin/$conf{\"index\"}")){
+			    
+			    while(<REP>){
+				$contenu.=$_;
+			    }
+			    close(REP);
+			}
+			else{
+			    $i = 1;
+			    $liste="<ul>";
+			    foreach $fichier (<$chemin/*>){
+				
+				print "$fichier\n";
+				$files{"$i"} = $fichier;
+				$fichier=~s!$chemin/!!;
+				$i++;
+				print STDOUT "$fichier\n$chemin\n$requeteClient\n";
+				$liste.="<li><a href=\"http://localhost:$conf{\"port\"}$requeteClient/$fichier\">$fichier</a></li>\n";
+				
+			    }
+			    $liste.="</ul>";
+			    $contenu="<html><head><meta charset=\'utf-8\'><title>$requeteClient</title></head><body>$liste</body></html>";
+			    print "$liste\n";
+			    
+			}
+			
+			
+		    }
+		    else{
+				$type2=mimetype($chemin);
+			
+			#"image/png"
+			#"text/html"
+			
+			if($type2=~/text\/(.*)/ || $type2=~/image\/png/){
+
+			     while(<FICHIER>){
+				 $contenu.=$_;
+			     }
+			     $type="get-s";
+			}
+			else{
+			    repondre415();
+			}
+		    }
+		    
+		    ### traiter le fichier ############
+		    while(<FICHIER>){
+			$contenu.="$_";
+		    }
+		    
+		    ###fabrication de la reponse ###
+		    #$contenu="<html><head><meta charset=\'utf-8\'><title>$requeteClient</title></head><body>$contenu</body></html>";
+		    #print "$contenu\n";
+		    $reponse="HTTP/1.1 200 OK\r\nContent-Type: $type2\r\nContent-Length: ".length($contenu)."\r\n\r\n$contenu\r\n";
+                    		    
+		    #on envoie la requete et on ferme le client
+		    CLIENT->autoflush(1);
+		    print CLIENT $reponse;
+		    
+		    close(CLIENT);
+		    ajouterLog($type,$ip,$requeteLog,$chemin,"200");
+		    
+		    exit 0;
+		}
+		else{
+		    $ouvriers{"$pid"}=1;
+		    print "Nb clients : $compteurClient \n";
+		    while(($termine=waitpid(-1, &WNOHANG))>0){
+			delete $ouvriers{"$termine"};
+			$nbRequetesTraitees++;
+			$compteurClient--;
+		    }
+		    
+		    close(CLIENT);
+		}
+		
+	    }
+	    else{
+		##trop de clients, service indisponible
+		repondre503();
+	    }	 
+	}
+
+	close(SERVEUR);
+	exit;
+	
+    }
+    else{
+	close(SERVEUR);
+    }
+}
+
+
+sub repondre400{
+    $contenu=creerPage("400 BAD REQUEST", "Erreur 400: Requête invalide </br> $requeteClient");
+    $reponse="HTTP/1.1 400 BAD REQUEST\r\nContent-Type: $type2\r\nContent-Length: ".length($contenu)."\r\n\r\n$contenu\r\n";
+   
+    #on envoie la reponse et on ferme le client
+    CLIENT->autoflush(1);
+    print CLIENT $reponse;
+    close(CLIENT);
+    ajouterLog($type,$ip,$requeteLog,$chemin,"400");
+}
+sub repondre403{
+    $contenu=creerPage("403 Forbidden", "Erreur 403: Forbidden");
+    $reponse="HTTP/1.1 403 FORBIDDEN\r\nContent-Type: $type2\r\nContent-Length: ".length($contenu)."\r\n\r\n$contenu\r\n";
+    
+    #on envoie la reponse et on ferme le client
+    CLIENT->autoflush(1);
+    print CLIENT $reponse;
+    close(CLIENT);
+    ajouterLog($type,$ip,$requeteLog,$chemin,"403");
+    exit 0;
+    
+}
+sub repondre404{
+    
+    $contenu=creerPage("404 NOT FOUND", "$requeteClient </br>Erreur 404: ressource non trouvée");
+    
+    
+    $reponse="HTTP/1.1 404 NOT FOUND\r\nContent-Type: $type2\r\nContent-Length: ".length($contenu)."\r\n\r\n$contenu\r\n";
+    #on envoie la reponse et on ferme le client
+    CLIENT->autoflush(1);
+    print CLIENT $reponse;
+    close(CLIENT);
+    ajouterLog($type,$ip,$requeteLog,$chemin,"404");
+    exit 0;
+    
+}
+sub repondre405{
+    $contenu=creerPage("405 METHOD NOT ALLOWED", "Erreur 405: method not allowed");
+    
+    $reponse="HTTP/1.1 405 METHOD NOT ALLOWED\r\nContent-Type: $type2\r\nContent-Length: ".length($contenu)."\r\n\r\n$contenu\r\n";
+   
+    #on envoie la reponse et on ferme le client
+    CLIENT->autoflush(1);
+    print CLIENT $reponse;
+    close(CLIENT);
+    ajouterLog($type,$ip,$requeteLog,$chemin,"405");
+}
+sub repondre415{
+    $contenu=creerPage("415 UNSUPPORTED MEDIA TYPE", "$requeteClient </br>Erreur 415: média non supporté");
+    $reponse="HTTP/1.1 415 UNSUPPORTED MEDIA TYPE\r\nContent-Type: $type2\r\nContent-Length: ".length($contenu)."\r\n\r\n$contenu\r\n";
+    
+    #on envoie la reponse et on ferme le client
+    CLIENT->autoflush(1);
+    print CLIENT $reponse;
+    close(CLIENT);
+    ajouterLog($type,$ip,$requeteLog,$chemin,"415");
+    exit 0;
+}
+sub repondre503{
+    
+    $contenu=creerPage("503 SERVICE UNAVAILABLE", "Erreur 503: Service indisponible");
+    $reponse="HTTP/1.1 503 SERVICE UNAVAILABLE\r\nContent-Type: $type2\r\nContent-Length: ".length($contenu)."\r\n\r\n$contenu\r\n";
+    
+    #on envoie la reponse et on ferme le client
+    CLIENT->autoflush(1);
+    print CLIENT $reponse;
+    close(CLIENT);
+    ajouterLog($type,$ip,$requeteLog,$chemin,"503");
+    
+}
+sub repondre505{
+    
+    $contenu=creerPage("505 HTTP VERSION NOT SUPPORTED", "Erreur 505: version HTTP non supportée </br>$requeteClient </br> ");
+    $reponse="HTTP/1.1 505 HTTP VERSION NOT SUPPORTED\r\nContent-Type: $type2\r\nContent-Length: ".length($contenu)."\r\n\r\n$contenu\r\n";
+    
+    #on envoie la reponse et on ferme le client
+    CLIENT->autoflush(1);
+    print CLIENT $reponse;
+    close(CLIENT);
+    ajouterLog($type,$ip,$requeteLog,$chemin,"505");
+    
+}
+sub creerPage{
+    
+    my $titre=@_[0];
+    my $corps=@_[1];
+    my $contenu="";
+    if($conf{"error"}){
+	open(PAGE, "$conf{\"error\"}") || die "$conf{\"error\"} n'existe pas";
+	while(<PAGE>){
+	    $contenu.=$_;
+	}
+	
+	$contenu=~s!<title>(.*)</title>!<title>$titre</title>!;
+	
+    }
+    else{
+	$contenu="<html><head><meta charset=\'utf-8\'><title>$titre</title></head><body> <h1>$corps</h1> </body></html>";
+    }
+    return $contenu;
+}
+
+sub arreterServeur{
+    close(CLIENT) ;
+    close(SERVEUR);
+    open(PID,"/tmp/.comanche_pid");
+    while(<PID>){
+	kill(SIGTERM,$_);
+    }
+    close(PID);
+    
+    open(PID, ">/tmp/.comanche_pid");
+    print PID "";
+    close(PID);
+}
+
+
+sub status{
+    open(PID,"/tmp/.comanche_pid") || die "Erreur: ouverture /tmp/.comanche_pid";
+    $pid=<PID>;
+    if(! $pid){
+	print "Le serveur n'est pas lancé\n";
+    }
+    else{
+	print "$pid";
+	#ajouter une ligne avec le nombre de requetes recues et le nombre de requetes traitees
+	#ajouter une ligne avec le nombre d(ouvriers actif et la liste de ces ouvriers
+    }
+}
+sub ajouterLog{
+    open (LOG, ">>$conf{\"logfile\"}") || die "Ouverture logfile";
+   	$log=time().";@_[0];@_[1];@_[2];@_[3];@_[4];\n";
+   	#print "log: $log";
+    print LOG $log;
+    close(LOG);
+}
+sub lireConf{
+    %conf;
+    open(CONFIG, "<comanche.conf") || die "Erreur lecture comanche.conf : $!";
+    while(<CONFIG>){
+	chomp($_);
+	if($_ =~ /^#/ || $_ =~ /^$/){next;}
+	if($_ =~ /^\s*set\s+(.+)\s+([^\s#]+)\s+(set\s+(.*)\s*)+(?:\s*#.*)?$/){
+		die "La ligne $_ n'est pas correcte\n";
+	}
+	elsif($_ =~ /^\s*set\s+(.+)\s+([^\s#]+)\s*(?:\s*#.*)?$/){
+	    $cle=$1;
+	    $valeur=$2;
+	    
+	    if($cle =~ /port/){
+		die "Erreur de configuration: port $valeur invalide" if $valeur <1 && $valeur>65535;
+	    }
+	    elsif($cle =~ /error/){
+		die "Erreur de configuration: $valeur n'existe pas\n" unless -f $valeur;
+		
+	    }
+	    elsif($cle =~ /index/){
+		#la verification se fait lors du traitement d'une requête car ce fichier n'est pas forcément présent
+	    }
+	    elsif($cle =~ /logfile/){
+		open(LOGFILE, ">>$valeur") || die "Erreur de configuration : logfile $valeur n'est pas disponible\n";
+		close(LOGFILE) || die "Erreur fermeture $valeur\n";
+	    }
+	    elsif($cle =~ /clients/){
+		die "Erreur de configuration: $cle $valeur n'est pas valide\n" unless $valeur =~ /\d+/;
+	    }
+	    else{
+		die "Erreur de configuration: $cle n'est pas valide\n";
+	    }
+	    $conf{$cle}=$valeur;
+	}
+	elsif($_ =~ /^\s*route\s+(.*)\s+to\s+(.*)/){
+
+	    $route{$1}=$2;
+	    #$conf{"route"}=$1;
+	    #$conf{"to"}=$2; 
+	    
+	}
+	elsif($_ =~ /^\s*exec\s+(.*)\s+from\s+(.*)/){
+
+	    $route{$1}=$2;
+	    #$conf{"exec"}=$1;
+	    #$conf{"from"}=$2;
+	}
+	else{
+	    die "Erreur de configuration: la ligne $_ n'est pas valide\n";
+	}
+    }
+    foreach $key (keys(%conf)){
+    	print "$key : $conf{$key}\n";
+    }
+}

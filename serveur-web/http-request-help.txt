@@ -1,0 +1,21 @@
+AIDE - HTTP-REQUEST(1)
+
+SYNOPSIS
+
+	http-request - traite la requête obtenue par http-server
+	
+	*************************************************
+
+DESCRIPTION
+
+	/contenu/ : affiche le contenu du fichier s'il existe
+	/html/ : affiche le contenu d'un fichier txt ou csv, ou l'arborescence d'un répertoire, s'il existe
+	/html/.../triepar/<nom> ou /html/.../triepar/<nombre>: trie le tableau csv selon le paramètre spécifié
+
+	*************************************************
+
+OPTION
+
+	-h : affiche l'aide du programme
+
+COPYRIGHT Florent Demeulenaere

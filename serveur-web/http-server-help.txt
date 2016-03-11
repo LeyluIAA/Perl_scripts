@@ -1,0 +1,16 @@
+AIDE - HTTP-SERVER(1)
+
+SYNOPSIS
+
+	http-server - lance une connection en écoutant un port spécifié par l'utilisateur (8080 par défaut)
+	
+	*************************************************
+
+OPTIONS 
+
+	-p : spécifie le port d'écoute
+	-t : spécifie le chemin du modèle
+	-d : spécifie le répertoire 
+	-h : affiche l'aide du serveur 
+
+COPYRIGHT Florent Demeulenaere

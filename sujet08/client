@@ -1,0 +1,15 @@
+#!/usr/bin/perl
+
+use Socket;
+
+socket (SOCKET,PF_INET,SOCK_STREAM,getprotobyname('tcp'));
+
+$adresse = inet_aton ("localhost") || die ("inet_aton");
+$adresse_complete = sockaddr_in("8080",$adresse) || die ("sockaddr_in");
+connect (SOCKET, $adresse_complete) || die ("connect");
+
+print "OK\n";
+while (<SOCKET>) {
+print $_;
+}
+close (SOCKET);

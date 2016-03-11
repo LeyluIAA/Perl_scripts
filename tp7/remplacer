@@ -1,0 +1,25 @@
+#!/usr/bin/perl
+$compteur=1;
+while(<STDIN>){
+    chomp($_);
+    if($compteur == 1 && -e $_){
+	open(FILEIN, "$_") || die "Erreur d'ouverture du fichier d'entrée $ARGV[0]";
+    }
+    if ($compteur == 2 && -e $_){
+	open(FILEOUT, ">$_") || die "Erreur d'ouverture du fichier de sortie";
+    }
+    $motif1 = $_ if $compteur == 3;
+    $motif2 = $_ if $compteur == 4;
+    $compteur++;
+    last if $compteur == 5;
+}
+
+while ($a=<FILEIN>){
+    chomp($a);
+    $a=~s/$motif1/$motif2/g;
+    print FILEOUT "$a\n";
+}
+
+close(FILEIN);
+close(FILEOUT);
+

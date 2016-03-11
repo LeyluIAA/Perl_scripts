@@ -1,0 +1,22 @@
+#!/usr/bin/perl
+
+use Socket;
+
+socket (SOCKET,PF_INET,SOCK_STREAM,getprotobyname('tcp'));
+
+$adresse = inet_aton ("meleze21") || die ("inet_aton");
+$adresse_complete = sockaddr_in("8080",$adresse) || die ("sockaddr_in");
+if(connect (SOCKET, $adresse_complete) || die ("connect")){
+
+    print "OK\n";
+}else{
+    die ("echec connect\n");
+}
+while(<STDIN>){
+    SOCKET->autoflush(1);
+    print {SOCKET} $_;
+    $reponse = <SOCKET>;
+    print $reponse;
+}
+
+close (SOCKET);

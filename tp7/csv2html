@@ -1,0 +1,37 @@
+#!/usr/bin/perl
+$delim=";";
+$i=0;
+foreach (@ARGV){
+    if($_ eq "-d"){
+	$delim = $ARGV[$i+1];
+	delete $ARGV[$i+1];
+	delete $ARGV[$i];
+    }
+    if($_ eq "-s"){
+	#tri...
+    }
+    if($_ eq "-S"){
+	#autre tri...
+    }
+    $i++;
+}
+
+#Affichage html
+$compteur = 1;
+print "<table border=1>";
+while(<STDIN>){
+    chomp();
+    if(compteur == 1){
+	print "<tr><th>";
+	$_ =~ s!$delim!</th><th>!g;
+	print "$_";
+	print "</th></tr>";
+    }
+    else{
+	print "<tr><td>";
+	$_ =~ s!$delim!</td><td>!g;
+	print "$_";
+	print "</td></tr>";
+    }
+}
+print "</table>";

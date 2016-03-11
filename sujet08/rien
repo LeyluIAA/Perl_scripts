@@ -1,0 +1,6 @@
+#!/usr/bin/perl
+
+$monpid = $$;
+print "mon pid $monpid démarre\n";
+sleep(3);
+print "mon pid $monpid termine\n";

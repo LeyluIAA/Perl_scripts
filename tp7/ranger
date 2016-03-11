@@ -1,0 +1,27 @@
+#!/usr/bin/perl
+
+(open(FILE,"@ARGV[0]") || die "Erreur d'ouverture du fichier") if @ARGV == 1;
+open(f,">f") || die "Erreur d'ouverture du fichier f";
+open(f1,">f1") || die "Erreur d'ouverture du fichier f1";
+open(f2, ">f2")   || die "Erreur d'ouverture du fichier f2";
+
+$compteur = 1;
+
+while ($ligne = <FILE>){
+    @tab=split(/,; \t/,$ligne);
+    print f "$compteur;$tab[0];$tab[1]\n";
+
+    if($tab[2]==1){
+	print f1 "$compteur;$tab[3]";
+    }
+    elsif ($tab[2]==2){
+	print f2 "$compteur;$tab[3]";
+    }
+    $cpt++;
+}
+
+close(FILE);
+close(f);
+close(f1);
+close(f2);
+

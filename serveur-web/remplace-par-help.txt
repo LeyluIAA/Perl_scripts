@@ -1,0 +1,14 @@
+AIDE - REMPLACE-PAR(1)
+
+SYNOPSIS
+
+	remplace-par - insert le contenu d'un fichier lu en entrée standard dans un fichier spécifié en paramètre
+	
+
+	*************************************************
+
+DESCRIPTION
+
+	Insert le contenu d'un fichier lu en entrée standard entre les lignes --DEBUT-- et --FIN-- du fichier spécifié en paramètre
+
+COPYRIGHT Florent Demeulenaere

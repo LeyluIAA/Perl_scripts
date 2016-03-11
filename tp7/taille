@@ -1,0 +1,9 @@
+#!/usr/bin/perl
+
+foreach $fichier (`ls`){
+    chomp($fichier);
+
+    @taille=stat($fichier);
+
+    print "$taille[7] \t $fichier\n";
+}

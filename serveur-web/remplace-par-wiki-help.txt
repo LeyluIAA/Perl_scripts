@@ -1,0 +1,14 @@
+AIDE - REMPLACE-PAR-WIKI(1)
+
+SYNOPSIS
+
+	remplace-par-wiki - utilise remplace-par et le modifie pour aspect graphique
+	
+
+	*************************************************
+
+DESCRIPTION
+
+	utilise remplace-par et modifie le résultat de sa sortie standard en modifiant les * et les " par des balises html
+
+COPYRIGHT Florent Demeulenaere

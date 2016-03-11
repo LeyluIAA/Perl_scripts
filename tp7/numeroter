@@ -1,0 +1,19 @@
+#!/usr/bin/perl
+
+if (@ARGV >= 1){
+    open(HAND, $ARGV[0]) || die "erreur lecture du fichier.";
+    $compteur=0;
+    while(<HAND>){
+	$compteur++;
+	print "$compteur  ";
+	print;
+    }
+}
+else{
+    $compteur=0;
+    while(<>){
+	$compteur++;
+	print "$compteur  ";
+	print;
+    }
+}
