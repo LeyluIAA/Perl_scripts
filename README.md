@@ -1,1 +1,1 @@
-personal perl script collection
+personal scripts for every kind of use
